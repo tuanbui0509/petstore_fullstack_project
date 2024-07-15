@@ -1,0 +1,81 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - deploy
+  pull_request:
+    branches:
+      - deploy
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: mcr.microsoft.com/mssql/server:2019-latest
+        env:
+          SA_PASSWORD: "TuanBui@123"
+          ACCEPT_EULA: "Y"
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd="exit 0"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v2
+        with:
+          dotnet-version: '7.0.x'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '18.x'
+
+      - name: Install dependencies (frontend)
+        working-directory: ./frontend
+        run: npm install
+
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+
+      - name: Install dependencies (backend)
+        working-directory: ./backend
+        run: dotnet restore
+
+      - name: Build backend
+        working-directory: ./backend
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run tests (frontend)
+        working-directory: ./frontend
+        run: npm test
+
+      - name: Run tests (backend)
+        working-directory: ./backend
+        run: dotnet test --no-restore --verbosity normal
+
+      - name: Build and push Docker images
+        env:
+          DOCKER_BUILDKIT: 1
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker-compose -f docker/docker-compose.yml build
+          docker tag project-root_web:latest ${{ secrets.DOCKER_USERNAME }}/project-root_web:${{ github.sha }}
+          docker tag project-root_api:latest ${{ secrets.DOCKER_USERNAME }}/project-root_api:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/project-root_web:${{ github.sha }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/project-root_api:${{ github.sha }}
+
+      - name: Deploy to Azure (or other cloud provider)
+        run: |
+          # Deployment steps here

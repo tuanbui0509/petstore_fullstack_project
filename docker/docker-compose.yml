@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  web:
+    build:
+      context: ../
+      dockerfile: docker/frontend/Dockerfile
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ../
+      dockerfile: docker/backend/Dockerfile
+    ports:
+      - "5000:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection="Server=127.0.0.1,1433;Database=PetStoreDRTSDB;user id=sa;password=TuanBui@123;TrustServerCertificate=True"
+    depends_on:
+      - db
+
+  db:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      SA_PASSWORD: "TuanBui@123"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
